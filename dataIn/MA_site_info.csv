@@ -1,0 +1,11 @@
+Site_ID,Site_Name,Latitude_dec_deg,Longitude_dec_deg,Elevation_ft,Drainage_Area_sqmi,Station_No
+AB,Avery Brook,42.449812,-72.694017,721.78,3,"=""01171000"""
+JB,Jimmy Brook,42.434854,-72.671022,479,1,"=""01171040"""
+MB,Mitchell Brook,42.433548,-72.668187,429.79,0.4,"=""01171080"""
+OL,Obear Brook Lower,42.434289,-72.671541,469.16,0.5,"=""01171070"""
+SD,Sanderson Brook,42.436353,-72.686845,641.61,1.7,"=""01171010"""
+WL,West Brook Lower,42.431868,-72.664232,410.1,8.4,"=""01171090"""
+WU,West Brook Upper,42.437495,-72.676016,515.09,6.5,"=""01171030"""
+WR,West Brook Reservoir,42.437132,-72.683362,587.27,6.2,"=""01171020"""
+WW,West Whately Brook,42.456777,-72.688199,705.38,0.5,"=""01171005"""
+WM,West Brook 0,42.414344,-72.629292,157.48,10.7,"=""01171100"""
