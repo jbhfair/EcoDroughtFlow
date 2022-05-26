@@ -1,0 +1,239 @@
+---
+title: "Convert FlowData"
+date: "3/2/2022"
+output: html_document
+---
+
+```{r , message=FALSE}
+
+# =============
+# Load Packages
+# =============
+
+library(ggthemes)
+library(lubridate)
+library(readxl)
+library(tidyverse)
+library(weathermetrics)
+
+```
+
+
+
+```{r}
+
+# =========
+# Functions
+# =========
+
+theme_Publication <- function(base_size=14, base_family="helvetica") {
+  (theme_foundation(base_size=base_size)
+   + theme(plot.title = element_text(face = "bold",
+                                     size = rel(1.2), hjust = 0.5),
+           text = element_text(),
+           panel.background = element_rect(colour = NA),
+           plot.background = element_rect(colour = NA),
+           panel.border = element_rect(colour = NA),
+           axis.title = element_text(face = "bold",size = rel(1)),
+           axis.title.y = element_text(angle=90,vjust =2),
+           axis.title.x = element_text(vjust = -0.2),
+           axis.text = element_text(), 
+           axis.line = element_line(colour="black"),
+           axis.ticks = element_line(),
+           panel.grid.major = element_line(colour="#f0f0f0"),
+           panel.grid.minor = element_blank(),
+           legend.key = element_rect(colour = NA),
+           legend.position = "right",
+           legend.direction = "vertical",
+           legend.key.size= unit(0.5, "cm"),
+           legend.margin = unit(0, "cm"),
+           legend.title = element_text(face="italic"),
+           plot.margin=unit(c(10,5,5,5),"mm"),
+           strip.background=element_rect(colour="#f0f0f0",fill="#f0f0f0"),
+           strip.text = element_text(face="bold")))}
+
+```
+
+
+```{r, warning=FALSE}
+
+# ==============================
+# Load Data and Modify Raw Data
+# =============================
+
+# ---------------
+# Continuous Data
+# ---------------
+
+continuousData <- read.csv("/Users/michaelhayden/DOI/GS-LSC_EcoDrought - General/DataViz/Plots_EcoD_dataviz/DataIn/MADataRelease/continuous/EcoDrought Continuous_MA_20200101_to_20210930.csv" ) %>%
+                  dplyr::select( Station_No , 
+                                 DateTime_EST , 
+                                 GageHeight_Hobo_ft , 
+                                 Discharge_Hobo_cfs,
+                                 WaterTemperature_HOBO_DegF ) %>%
+                  mutate( location_id = as.character(Station_No)) %>%
+                          pivot_longer( GageHeight_Hobo_ft:WaterTemperature_HOBO_DegF ,      #### I made the data frame into long format. 
+                                        names_to = "type" , 
+                                        values_to = "value" ) %>% 
+                  na.omit() %>%
+                  mutate( DateTime_EST = ymd_hms(DateTime_EST) ,
+                          year = year(DateTime_EST) , 
+                          month = month(DateTime_EST) ,
+                          day = date(DateTime_EST) , 
+                          hour = hour(DateTime_EST)) %>%
+                  ungroup() 
+                  
+
+# ---------
+# Site Info
+# ---------
+
+site_info <- read_excel( "/Users/michaelhayden/DOI/GS-LSC_EcoDrought - General/DataViz/Plots_EcoD_dataviz/DataIn/MADataRelease/siteID/MA_site_info_20220210.xlsx") %>%
+             mutate( Station_No = as.character( Station_No ), 
+                     DA_sqft = Drainage_Area_sqmi*2.788e+7 , 
+                     DArank = as.integer(rank(DA_sqft, ties.method="first"))) 
+
+```
+
+
+
+```{r}
+
+# =========
+# Mean Flow
+# =========
+
+# -----------
+# Hourly Flow
+# -----------
+
+continuousDataMeanHour <- continuousData %>% mutate( dateTime = ymd_h(paste(day , hour ))) %>%   ### This is the grouping time variable. 
+                                             group_by( Station_No , 
+                                                       type , 
+                                                       dateTime ) %>% 
+                                            summarise( imperialUnits = mean(value)) %>%
+                                            mutate( method = "Mean" ,                             ### Method is either Mean or Yield normalized to DA , this will allow us to easily filter throught the big dataFrame in R shiny. 
+                                                    aggregate = "Hour" )                          ### Aggregate is either 
+
+# ----------
+# Daily Flow
+# ----------
+
+continuousDataMeanDay <- continuousData %>%  group_by( Station_No , 
+                                                       type , 
+                                                       day ) %>% 
+                                            summarise( imperialUnits = mean(value)) %>%
+                                            mutate( method = "Mean" , 
+                                                    aggregate = "Daily" ) %>% 
+                                            rename( dateTime = day )
+
+# ------------
+# Monthly Flow
+# ------------
+
+continuousDataMeanMonth <- continuousData %>% mutate( dateTime = my(paste( month, year , sep = "  "))) %>%
+                                              group_by( Station_No , 
+                                                        type , 
+                                                        dateTime ) %>% 
+                                              summarise( imperialUnits = mean(value)) %>%
+                                              mutate( method = "Mean" , 
+                                                      aggregate = "Month" )
+
+
+# ===================================
+# Flow Yield By Drainage Area Monthly
+# ===================================
+                                             
+# ------------
+# Hourly Yield
+# ------------                                            
+
+continuousYieldMeanHour <- continuousData %>% filter( type == "Discharge_Hobo_cfs" ) %>% 
+                                              mutate( value = value * 15 * 60 , 
+                                                      dateTime = ymd_h(paste( day , hour, sep = "" ))) %>%
+                                              group_by( Station_No, 
+                                                        type,
+                                                        dateTime ) %>%
+                                              summarise( imperialUnits = mean(value))  %>%
+                                              mutate( method = "Yield" , 
+                                                      aggregate = "Hour" ) 
+                                               
+ 
+ # -----------
+ # Daily Yield
+ # -----------
+ 
+continuousYieldMeanDay <- continuousData %>% filter( type == "Discharge_Hobo_cfs" ) %>% 
+                                              mutate( value = value * 15 * 60 , 
+                                                      dateTime = day ) %>%
+                                              group_by( Station_No, 
+                                                        type,
+                                                        dateTime ) %>%
+                                              summarise( imperialUnits = mean(value)) %>%
+                                              mutate( method = "Yield" , 
+                                                      aggregate = "Day" )
+ 
+ # -------------
+ # Monthly Yield
+ # -------------
+ 
+continuousYieldMeanMonth <- continuousData %>% filter( type == "Discharge_Hobo_cfs" ) %>% 
+                                              mutate( value2 = value * 15 * 60 , 
+                                                      dateTime = my(paste( month, year , sep = "  "))) %>%
+                                              group_by( Station_No, 
+                                                        type,
+                                                        dateTime ) %>%
+                                              summarise( imperialUnits = sum(value2)) %>%
+                                              mutate( method = "Yield" , 
+                                                      aggregate = "Month" )
+
+
+ 
+ 
+ continuousMean <- bind_rows( continuousYieldMeanHour , 
+                              continuousYieldMeanDay , 
+                              continuousYieldMeanMonth , 
+                              continuousDataMeanHour , 
+                              continuousDataMeanDay , 
+                              continuousDataMeanMonth) %>% 
+                   mutate(Station_No = str_extract_all( Station_No ,"\\(?[0-9,.]+\\)?")[[1]] ) %>%
+                   left_join( site_info %>% dplyr::select("Station_No" , "Site_Name" , "DArank" , "DA_sqft") , 
+                                                    by = c("Station_No" = "Station_No" )) %>%
+                   mutate( imperialUnits = ifelse( method == "Yield" , imperialUnits/DA_sqft , imperialUnits ), 
+                           metricUnits = ifelse( type == "Discharge_Hobo_cfs" & method == "Mean" , imperialUnits * 0.0283 , 
+                                          ifelse( type == "GageHeight_Hobo_ft" & method == "Mean" , imperialUnits * 0.3048 , 
+                                           ifelse(type == "WaterTemperature_HOBO_DegF" ,  fahrenheit.to.celsius(imperialUnits), imperialUnits ))))
+                        
+ 
+ rm( continuousYieldMeanHour , 
+     continuousYieldMeanDay , 
+     continuousYieldMeanMonth , 
+     continuousDataMeanHour , 
+     continuousDataMeanDay , 
+     continuousDataMeanMonth)
+
+
+```
+
+
+```{r}
+
+continuousMean$Site_Name <- as.factor(continuousMean$Site_Name)
+continuousMean$Site_Name <- factor(continuousMean$Site_Name, levels= c("West Brook 0","West Brook Lower","West Brook Upper","West Brook Reservoir","Avery Brook","Sanderson Brook","Jimmy Brook","West Whately Brook","Obear Brook Lower","Mitchell Brook"))
+
+cbp2 <- c("#000000", "#E69F00", "#56B4E9", "#009E73",
+          "#F0E442", "#0072B2", "#D55E00", "#CC79A7","#490092","#999999")
+
+
+continuousMean %>% filter( type == "Discharge_Hobo_cfs" , 
+                           method == "Yield" , 
+                           aggregate %in% c("Day") ,
+                           dateTime > "2020-03-01" ) %>% 
+                   ggplot( aes( y = imperialUnits , 
+                                x = dateTime , 
+                                group = Site_Name, 
+                                colour = Site_Name )) + 
+                    geom_point() +  
+                    geom_line() + theme_Publication()
+
+```
